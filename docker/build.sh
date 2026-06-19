@@ -121,8 +121,11 @@ docker exec "$CONTAINER" bash -l -c "
   set -euo pipefail
   PMB=\"$PMB\"
 
-  echo \"[0/5] Fixing volume permissions...\"
+  echo \"[0/5] Fixing volume permissions and seeding version...\"
   sudo chown -R pmos:pmos /home/pmos/.local/var/pmbootstrap
+  if [ ! -f /home/pmos/.local/var/pmbootstrap/version ]; then
+    echo 8 > /home/pmos/.local/var/pmbootstrap/version
+  fi
 
   echo \"[1/5] Setting channel to $CHANNEL...\"
   sed -i \"s/^channel =.*/channel = $CHANNEL/\" /home/pmos/.config/pmbootstrap_v3.cfg
