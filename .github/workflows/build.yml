@@ -1,0 +1,392 @@
+name: 🔨 Build & Release postmarketOS Image
+
+on:
+  # ── Reusable — called by nightly.yml or other workflows ─────────────────────
+  workflow_call:
+    inputs:
+      variant:
+        required: true
+        type: string
+      release_tag:
+        required: false
+        type: string
+        default: ''
+      prerelease:
+        required: false
+        type: boolean
+        default: true
+
+  # ── Manual trigger with dropdown ────────────────────────────────────────────
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: 'Image variant to build'
+        required: true
+        type: choice
+        default: 'phosh_light'
+        options:
+          - phosh_light       # ~1.1 GB  — Phosh minimal  ✅ fits in one release asset
+          - sxmo              # ~1.1 GB  — Sxmo/Sway       ✅
+          - phosh             # ~1.9 GB  — Phosh standard  ✅
+          - phosh_balanced    # ~2.0 GB  — Phosh + extras  ✅ (tight, may split)
+          - xfce4             # ~2.2 GB  — XFCE4 desktop   ⚠️ may split
+          - lomiri_light      # ~1.5 GB  — Lomiri minimal  ✅
+          - lomiri_balanced   # ~2.5 GB  — Lomiri + extras ⚠️ may split
+          - tuned             # ~3.2 GB  — Tuned dual-UI   ⚠️ will split
+          - super             # ~3.6 GB  — All-in-one      ⚠️ will split
+          - dev               # ~4.7 GB  — Full dev image  ⚠️ will split
+
+      release_tag:
+        description: 'Release tag (e.g. v1.0, nightly). Leave blank to auto-generate.'
+        required: false
+        type: string
+        default: ''
+
+      prerelease:
+        description: 'Mark as pre-release?'
+        required: false
+        type: boolean
+        default: true
+
+  # ── Auto-build phosh_light on push to main ──────────────────────────────────
+  push:
+    branches: [main]
+    paths:
+      - 'docker/**'
+      - '.github/workflows/build.yml'
+
+env:
+  PMB_USER: pmos
+  PMB: python3 /home/pmos/pmbootstrap/pmbootstrap.py
+  DEVICE: qcom-msm8953
+  PMOS_PASSWORD: pmos1234
+
+# ── Prevent duplicate concurrent runs of same variant ──────────────────────────
+concurrency:
+  group: build-${{ github.event.inputs.variant || 'phosh_light' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.variant || 'phosh_light' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write     # needed to create releases and upload assets
+
+    steps:
+      # ────────────────────────────────────────────────────────────────────────
+      # 0. Resolve variant (push trigger always builds phosh_light)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Resolve build parameters
+        id: params
+        run: |
+          VARIANT="${{ github.event.inputs.variant || 'phosh_light' }}"
+          echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+
+          # UI name map
+          case "$VARIANT" in
+            phosh|phosh_light|phosh_balanced|super|dev) UI="phosh" ;;
+            sxmo)          UI="sxmo-de-sway" ;;
+            xfce4)         UI="xfce4" ;;
+            lomiri_light|lomiri_balanced) UI="lomiri" ;;
+            tuned)         UI="phosh" ;;
+            *)             echo "Unknown variant: $VARIANT"; exit 1 ;;
+          esac
+          echo "ui=$UI" >> $GITHUB_OUTPUT
+
+          # Extra packages map
+          case "$VARIANT" in
+            phosh|phosh_light|sxmo|xfce4|lomiri_light)
+              EXTRA="none" ;;
+            phosh_balanced)
+              EXTRA="foot,nautilus,evince,mpv" ;;
+            lomiri_balanced)
+              EXTRA="morph-browser,messaging-app" ;;
+            tuned)
+              EXTRA="postmarketos-ui-lomiri" ;;
+            super)
+              EXTRA="postmarketos-ui-sxmo-de-sway,postmarketos-ui-xfce4,postmarketos-ui-lomiri" ;;
+            dev)
+              EXTRA="vscodium,openjdk17,python3,py3-pip,nodejs,npm,yarn,mariadb,redis,podman" ;;
+          esac
+          echo "extra=$EXTRA" >> $GITHUB_OUTPUT
+
+          # Release tag
+          TAG="${{ github.event.inputs.release_tag }}"
+          if [[ -z "$TAG" ]]; then
+            TAG="build-$(date -u +%Y%m%d-%H%M)-${VARIANT}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          echo "img_name=${VARIANT}_sparse.img" >> $GITHUB_OUTPUT
+          echo ""
+          echo "=== Build parameters ==="
+          echo "  Variant : $VARIANT"
+          echo "  UI      : $UI"
+          echo "  Extra   : $EXTRA"
+          echo "  Tag     : $TAG"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 1. Checkout repo
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 2. Free disk space — ubuntu-24.04 ships ~14 GB usable; we need more
+      #    Remove pre-installed tooling we don't need for this build.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Free disk space
+        run: |
+          echo "=== Disk before cleanup ==="
+          df -h /
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            "$AGENT_TOOLSDIRECTORY" \
+            /usr/share/swift \
+            /usr/local/.ghcup \
+            2>/dev/null || true
+          sudo apt-get clean
+          sudo docker image prune -af 2>/dev/null || true
+          echo "=== Disk after cleanup ==="
+          df -h /
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 3. Install system dependencies
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            python3 python3-pip python3-venv \
+            git openssl gnupg parted \
+            e2fsprogs dosfstools \
+            binfmt-support qemu-user-static \
+            android-sdk-libsparse-utils \
+            cryptsetup-bin util-linux \
+            wget curl ca-certificates \
+            sudo pigz
+
+          # Verify img2simg is available
+          which img2simg || { echo "ERROR: img2simg not found"; exit 1; }
+          echo "img2simg: $(img2simg --help 2>&1 | head -1 || true)"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 4. Create pmos user (pmbootstrap refuses to run as root)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Create pmos build user
+        run: |
+          sudo useradd -ms /bin/bash pmos
+          echo "pmos ALL=(ALL) NOPASSWD: ALL" | sudo tee -a /etc/sudoers
+          # Give pmos access to loop devices (needed by pmbootstrap chroot)
+          sudo usermod -aG disk pmos 2>/dev/null || true
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 5. Clone pmbootstrap
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Clone pmbootstrap
+        run: |
+          sudo -u pmos git clone --depth 1 \
+            https://gitlab.com/postmarketOS/pmbootstrap.git \
+            /home/pmos/pmbootstrap
+          echo "pmbootstrap version: $(sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py --version)"
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 6. Write pmbootstrap config (non-interactive init)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Configure pmbootstrap
+        run: |
+          sudo -u pmos mkdir -p /home/pmos/.config
+          sudo tee /home/pmos/.config/pmbootstrap_v3.cfg > /dev/null << 'EOF'
+          [pmbootstrap]
+          auto_zap_misconfigured_chroots = yes
+          device = qcom-msm8953
+          is_default_channel = False
+          sudo_timer = True
+          timezone = Etc/UTC
+          ui = phosh
+          user = pmos
+
+          [providers]
+
+          [mirrors]
+
+          EOF
+          sudo chown pmos:pmos /home/pmos/.config/pmbootstrap_v3.cfg
+          sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py config
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 7. Set UI and extra packages for chosen variant
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Set variant config
+        run: |
+          PMB="sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py"
+          $PMB config ui "${{ steps.params.outputs.ui }}"
+          if [[ "${{ steps.params.outputs.extra }}" != "none" ]]; then
+            $PMB config extra_packages "${{ steps.params.outputs.extra }}"
+          else
+            $PMB config extra_packages "none"
+          fi
+          echo "=== Final config ==="
+          $PMB config
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 8. Run pmbootstrap install
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Build image (pmbootstrap install)
+        run: |
+          echo -e "${{ env.PMOS_PASSWORD }}\n${{ env.PMOS_PASSWORD }}" | \
+            sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1
+        timeout-minutes: 90
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 9. Export and convert to sparse
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Export and convert to sparse image
+        run: |
+          sudo -u pmos mkdir -p /home/pmos/output
+          sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py \
+            export /home/pmos/output 2>&1
+
+          # Resolve symlink to actual file
+          RAW=$(sudo -u pmos readlink -f /home/pmos/output/qcom-msm8953.img)
+          echo "Raw image: $RAW ($(du -sh $RAW | cut -f1))"
+
+          IMG="${{ steps.params.outputs.img_name }}"
+          sudo img2simg "$RAW" "/home/pmos/output/$IMG"
+          echo "Sparse image: /home/pmos/output/$IMG"
+          ls -lh /home/pmos/output/$IMG
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 10. Also export lk2nd.img (bootloader)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Collect lk2nd.img
+        run: |
+          LK2ND=$(sudo -u pmos readlink -f /home/pmos/output/lk2nd.img 2>/dev/null || \
+                  find /home/pmos/.local/var/pmbootstrap -name 'lk2nd.img' 2>/dev/null | head -1)
+          if [[ -n "$LK2ND" && -f "$LK2ND" ]]; then
+            sudo cp "$LK2ND" /home/pmos/output/lk2nd.img
+            echo "lk2nd: $LK2ND ($(du -sh $LK2ND | cut -f1))"
+          else
+            echo "WARNING: lk2nd.img not found — may already be in output dir"
+          fi
+          ls -lh /home/pmos/output/
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 11. Split files > 1.9 GB (GitHub releases limit is 2 GB per asset)
+      #     Reassemble with: cat *.part* > original.img
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Split oversized images
+        id: split
+        run: |
+          IMG="/home/pmos/output/${{ steps.params.outputs.img_name }}"
+          SIZE=$(stat -c%s "$IMG")
+          MAX=$((1900 * 1024 * 1024))   # 1.9 GB threshold
+
+          if (( SIZE > MAX )); then
+            echo "Image is $(du -sh $IMG | cut -f1), splitting into 1.9 GB parts..."
+            sudo split -b 1900M "$IMG" "${IMG}.part"
+            sudo rm "$IMG"
+            echo "Parts:"
+            ls -lh ${IMG}.part* | tee /tmp/parts.txt
+            ASSETS=$(ls /home/pmos/output/*.part* /home/pmos/output/lk2nd.img 2>/dev/null | tr '\n' ',')
+          else
+            echo "Image fits in one asset ($(du -sh $IMG | cut -f1)), no splitting needed."
+            ASSETS=$(ls /home/pmos/output/${{ steps.params.outputs.img_name }} /home/pmos/output/lk2nd.img 2>/dev/null | tr '\n' ',')
+          fi
+
+          # Write asset list for the upload step
+          echo "assets=${ASSETS%,}" >> $GITHUB_OUTPUT
+          echo "All release assets:"
+          echo "${ASSETS%,}" | tr ',' '\n'
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 12. Generate release notes
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Generate release notes
+        id: notes
+        run: |
+          VARIANT="${{ steps.params.outputs.variant }}"
+          UI="${{ steps.params.outputs.ui }}"
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+
+          cat > /tmp/release_notes.md << EOF
+          ## postmarketOS — Xiaomi Redmi Note 4 (mido)
+
+          **Variant:** \`$VARIANT\`
+          **UI:** \`$UI\`
+          **Built:** $DATE
+          **Kernel:** mainline \`linux-postmarketos-qcom-msm8953\`
+          **Device:** qcom-msm8953 (generic / Snapdragon 625)
+
+          ### Flash Instructions
+
+          \`\`\`bash
+          # 1. Clone the repo
+          git clone https://github.com/${{ github.repository }}
+          cd $(basename ${{ github.repository }})
+
+          # 2. Download release assets into images/
+          #    (or use GitHub CLI: gh release download ${{ steps.params.outputs.tag }} -D images/)
+
+          # 3. If image was split, reassemble first:
+          #    cat ${VARIANT}_sparse.img.part* > ${VARIANT}_sparse.img
+
+          # 4. Flash
+          cd flash-scripts
+          ./flash_${VARIANT}.sh
+          \`\`\`
+
+          ### Default Credentials
+          - **User:** \`pmos\`
+          - **Password:** \`pmos1234\`
+          - **SSH:** \`ssh pmos@172.16.42.1\`
+
+          ### Notes
+          - All images use \`lk2nd\` as the secondary bootloader (flash to \`boot\` partition)
+          - Sparse images use \`fastboot -S 128M\` for reliable flashing
+          - See [docs/](https://github.com/${{ github.repository }}/tree/main/docs) for full guide
+          EOF
+
+          echo "notes_file=/tmp/release_notes.md" >> $GITHUB_OUTPUT
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 13. Create GitHub Release and upload assets
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.params.outputs.tag }}
+          name: "mido pmos — ${{ steps.params.outputs.variant }} (${{ steps.params.outputs.tag }})"
+          body_path: /tmp/release_notes.md
+          prerelease: ${{ github.event.inputs.prerelease || 'true' }}
+          files: |
+            /home/pmos/output/${{ steps.params.outputs.img_name }}*
+            /home/pmos/output/lk2nd.img
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ────────────────────────────────────────────────────────────────────────
+      # 14. Summary
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Print build summary
+        if: always()
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Variant | \`${{ steps.params.outputs.variant }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| UI | \`${{ steps.params.outputs.ui }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Release tag | \`${{ steps.params.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Disk usage | $(df -h / | awk 'NR==2{print $3 " used / " $2 " total"}') |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Output files" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          ls -lh /home/pmos/output/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY

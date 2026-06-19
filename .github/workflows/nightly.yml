@@ -1,0 +1,54 @@
+name: 🌙 Nightly Phosh Light Release
+
+on:
+  # Run at 2 AM UTC every day
+  schedule:
+    - cron: '0 2 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
+
+env:
+  VARIANT: phosh_light
+  PMOS_PASSWORD: pmos1234
+
+jobs:
+  check-changes:
+    name: Check if rebuild needed
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for relevant changes in last 24h
+        id: check
+        run: |
+          # Check if docker/ or workflow changed in last 24 hours
+          CHANGED=$(git log --since="24 hours ago" --oneline -- docker/ .github/workflows/ | wc -l)
+          # Also check if a nightly release already exists for today
+          TODAY=$(date -u +%Y%m%d)
+          if gh release view "nightly-phosh-light-${TODAY}" &>/dev/null 2>&1; then
+            echo "Release for today already exists, skipping."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          elif (( CHANGED > 0 )); then
+            echo "Changes detected ($CHANGED commits), will rebuild."
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "No relevant changes, skipping build."
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-nightly:
+    name: Build nightly phosh_light
+    needs: check-changes
+    if: needs.check-changes.outputs.should_build == 'true' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/build.yml
+    with:
+      variant: phosh_light
+      release_tag: nightly-phosh-light-${{ github.run_id }}
+      prerelease: true
+    secrets: inherit
