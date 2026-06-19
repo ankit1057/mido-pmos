@@ -121,8 +121,8 @@ docker exec "$CONTAINER" bash -l -c "
   set -euo pipefail
   PMB=\"$PMB\"
 
-  echo \"[1/5] Setting channel to $CHANNEL...\"
-  \$PMB config channel \"$CHANNEL\"
+  echo "[1/5] Setting channel to $CHANNEL..."
+  python3 -c "import configparser; c = configparser.ConfigParser(); c.read('/home/pmos/.config/pmbootstrap.cfg'); c['pmbootstrap']['channel'] = '$CHANNEL'; c['pmbootstrap']['is_default_channel'] = 'False'; c.write(open('/home/pmos/.config/pmbootstrap.cfg', 'w'))"
 
   echo \"[1/5] Setting UI to $UI...\"
   \$PMB config ui \"$UI\"
