@@ -122,7 +122,7 @@ docker exec "$CONTAINER" bash -l -c "
   PMB=\"$PMB\"
 
   echo \"[0/5] Fixing volume permissions and seeding version...\"
-  sudo chown -R pmos:pmos /home/pmos/.local/var/pmbootstrap
+  sudo chown pmos:pmos /home/pmos/.local/var/pmbootstrap
   if [ ! -f /home/pmos/.local/var/pmbootstrap/version ]; then
     echo 8 > /home/pmos/.local/var/pmbootstrap/version
   fi
