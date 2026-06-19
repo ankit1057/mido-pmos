@@ -208,10 +208,10 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Clone pmbootstrap
         run: |
-          sudo -u pmos git clone --depth 1 \
+          sudo -u pmos env HOME=/home/pmos git clone --depth 1 \
             https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git \
             /home/pmos/pmbootstrap
-          echo "pmbootstrap version: $(sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py --version)"
+          echo "pmbootstrap version: $(sudo -u pmos env HOME=/home/pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py --version)"
 
       # ────────────────────────────────────────────────────────────────────────
       # 5.5. Clone pmaports (required for pmbootstrap config validation)
@@ -219,12 +219,12 @@ jobs:
       - name: Clone pmaports
         run: |
           CHANNEL="${{ steps.params.outputs.channel }}"
-          sudo -u pmos git clone --depth 1 -b main \
+          sudo -u pmos env HOME=/home/pmos git clone --depth 1 -b main \
             https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
             /home/pmos/pmaports
           if [[ "$CHANNEL" != "edge" ]]; then
-            sudo -u pmos git -C /home/pmos/pmaports fetch --depth 1 origin "$CHANNEL":"$CHANNEL"
-            sudo -u pmos git -C /home/pmos/pmaports checkout "$CHANNEL"
+            sudo -u pmos env HOME=/home/pmos git -C /home/pmos/pmaports fetch --depth 1 origin "$CHANNEL":"$CHANNEL"
+            sudo -u pmos env HOME=/home/pmos git -C /home/pmos/pmaports checkout "$CHANNEL"
           fi
 
       # ────────────────────────────────────────────────────────────────────────
@@ -232,7 +232,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Configure pmbootstrap
         run: |
-          sudo -u pmos mkdir -p /home/pmos/.config
+          sudo -u pmos env HOME=/home/pmos mkdir -p /home/pmos/.config
           sudo tee /home/pmos/.config/pmbootstrap_v3.cfg > /dev/null << 'EOF'
           [pmbootstrap]
           aports = /home/pmos/pmaports
@@ -251,14 +251,14 @@ jobs:
 
           EOF
           sudo chown pmos:pmos /home/pmos/.config/pmbootstrap_v3.cfg
-          sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py config
+          sudo -u pmos env HOME=/home/pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py config
 
       # ────────────────────────────────────────────────────────────────────────
       # 7. Set UI and extra packages for chosen variant
       # ────────────────────────────────────────────────────────────────────────
       - name: Set variant config
         run: |
-          PMB="sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py"
+          PMB="sudo -u pmos env HOME=/home/pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py"
           $PMB config ui "${{ steps.params.outputs.ui }}"
           if [[ "${{ steps.params.outputs.extra }}" != "none" ]]; then
             $PMB config extra_packages "${{ steps.params.outputs.extra }}"
@@ -274,7 +274,7 @@ jobs:
       - name: Build image (pmbootstrap install)
         run: |
           echo -e "${{ env.PMOS_PASSWORD }}\n${{ env.PMOS_PASSWORD }}" | \
-            sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1
+            sudo -u pmos env HOME=/home/pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1
         timeout-minutes: 90
 
       # ────────────────────────────────────────────────────────────────────────
@@ -282,12 +282,12 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Export and convert to sparse image
         run: |
-          sudo -u pmos mkdir -p /home/pmos/output
-          sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py \
+          sudo -u pmos env HOME=/home/pmos mkdir -p /home/pmos/output
+          sudo -u pmos env HOME=/home/pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py \
             export /home/pmos/output 2>&1
 
           # Resolve symlink to actual file
-          RAW=$(sudo -u pmos readlink -f /home/pmos/output/qcom-msm8953.img)
+          RAW=$(sudo -u pmos env HOME=/home/pmos readlink -f /home/pmos/output/qcom-msm8953.img)
           echo "Raw image: $RAW ($(du -sh $RAW | cut -f1))"
 
           IMG="${{ steps.params.outputs.img_name }}"
@@ -300,7 +300,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Collect lk2nd.img
         run: |
-          LK2ND=$(sudo -u pmos readlink -f /home/pmos/output/lk2nd.img 2>/dev/null || \
+          LK2ND=$(sudo -u pmos env HOME=/home/pmos readlink -f /home/pmos/output/lk2nd.img 2>/dev/null || \
                   find /home/pmos/.local/var/pmbootstrap -name 'lk2nd.img' 2>/dev/null | head -1)
           if [[ -n "$LK2ND" && -f "$LK2ND" ]]; then
             sudo cp "$LK2ND" /home/pmos/output/lk2nd.img
