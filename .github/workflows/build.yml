@@ -309,12 +309,18 @@ jobs:
 
           # Resolve symlink to actual file
           RAW=$(sudo -u pmos env HOME=/home/pmos readlink -f /home/pmos/output/qcom-msm8953.img)
-          echo "Raw image: $RAW ($(du -sh $RAW | cut -f1))"
 
           IMG="${{ steps.params.outputs.img_name }}"
           sudo img2simg "$RAW" "/home/pmos/output/$IMG"
-          echo "Sparse image: /home/pmos/output/$IMG"
-          ls -lh /home/pmos/output/$IMG
+
+          # Copy to runner workspace release folder and fix ownership so the runner user has access
+          mkdir -p ./release
+          sudo cp "/home/pmos/output/$IMG" "./release/$IMG"
+          sudo chown -R runner:runner ./release
+
+          echo "Raw image size: $(sudo du -sh $RAW | cut -f1)"
+          echo "Sparse image size: $(du -sh ./release/$IMG | cut -f1)"
+          ls -lh ./release/$IMG
 
       # ────────────────────────────────────────────────────────────────────────
       # 10. Also export lk2nd.img (bootloader)
@@ -322,14 +328,15 @@ jobs:
       - name: Collect lk2nd.img
         run: |
           LK2ND=$(sudo -u pmos env HOME=/home/pmos readlink -f /home/pmos/output/lk2nd.img 2>/dev/null || \
-                  find /home/pmos/.local/var/pmbootstrap -name 'lk2nd.img' 2>/dev/null | head -1)
+                  sudo find /home/pmos/.local/var/pmbootstrap -name 'lk2nd.img' 2>/dev/null | head -1)
           if [[ -n "$LK2ND" && -f "$LK2ND" ]]; then
-            sudo cp "$LK2ND" /home/pmos/output/lk2nd.img
-            echo "lk2nd: $LK2ND ($(du -sh $LK2ND | cut -f1))"
+            sudo cp "$LK2ND" ./release/lk2nd.img
+            sudo chown runner:runner ./release/lk2nd.img
+            echo "lk2nd: $LK2ND ($(du -sh ./release/lk2nd.img | cut -f1))"
           else
-            echo "WARNING: lk2nd.img not found — may already be in output dir"
+            echo "WARNING: lk2nd.img not found"
           fi
-          ls -lh /home/pmos/output/
+          ls -lh ./release/
 
       # ────────────────────────────────────────────────────────────────────────
       # 11. Split files > 1.9 GB (GitHub releases limit is 2 GB per asset)
@@ -338,20 +345,20 @@ jobs:
       - name: Split oversized images
         id: split
         run: |
-          IMG="/home/pmos/output/${{ steps.params.outputs.img_name }}"
+          IMG="./release/${{ steps.params.outputs.img_name }}"
           SIZE=$(stat -c%s "$IMG")
           MAX=$((1900 * 1024 * 1024))   # 1.9 GB threshold
 
           if (( SIZE > MAX )); then
             echo "Image is $(du -sh $IMG | cut -f1), splitting into 1.9 GB parts..."
-            sudo split -b 1900M "$IMG" "${IMG}.part"
-            sudo rm "$IMG"
+            split -b 1900M "$IMG" "${IMG}.part"
+            rm "$IMG"
             echo "Parts:"
             ls -lh ${IMG}.part* | tee /tmp/parts.txt
-            ASSETS=$(ls /home/pmos/output/*.part* /home/pmos/output/lk2nd.img 2>/dev/null | tr '\n' ',')
+            ASSETS=$(ls ./release/*.part* ./release/lk2nd.img 2>/dev/null | tr '\n' ',')
           else
             echo "Image fits in one asset ($(du -sh $IMG | cut -f1)), no splitting needed."
-            ASSETS=$(ls /home/pmos/output/${{ steps.params.outputs.img_name }} /home/pmos/output/lk2nd.img 2>/dev/null | tr '\n' ',')
+            ASSETS=$(ls ./release/${{ steps.params.outputs.img_name }} ./release/lk2nd.img 2>/dev/null | tr '\n' ',')
           fi
 
           # Write asset list for the upload step
@@ -420,8 +427,8 @@ jobs:
           body_path: /tmp/release_notes.md
           prerelease: ${{ github.event.inputs.prerelease || 'true' }}
           files: |
-            /home/pmos/output/${{ steps.params.outputs.img_name }}*
-            /home/pmos/output/lk2nd.img
+            ./release/${{ steps.params.outputs.img_name }}*
+            ./release/lk2nd.img
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -443,5 +450,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Output files" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          ls -lh /home/pmos/output/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          ls -lh ./release/ >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
