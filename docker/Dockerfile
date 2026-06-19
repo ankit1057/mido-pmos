@@ -16,8 +16,12 @@ RUN apt-get update && apt-get install -y \
     sudo \
     parted \
     e2fsprogs \
-    android-tools-fsutils \
-    img2simg \
+    kpartx \
+    procps \
+    dosfstools \
+    qemu-user-static \
+    binfmt-support \
+    android-sdk-libsparse-utils \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
