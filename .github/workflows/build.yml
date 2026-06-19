@@ -233,6 +233,8 @@ jobs:
       - name: Configure pmbootstrap
         run: |
           sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config mkdir -p /home/pmos/.config
+          sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config mkdir -p /home/pmos/.local/var/pmbootstrap
+          sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config sh -c "echo 8 > /home/pmos/.local/var/pmbootstrap/version"
           sudo tee /home/pmos/.config/pmbootstrap_v3.cfg > /dev/null << 'EOF'
           [pmbootstrap]
           aports = /home/pmos/pmaports
