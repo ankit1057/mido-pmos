@@ -141,7 +141,9 @@ docker exec "$CONTAINER" bash -l -c "
   fi
 
   echo \"[2/5] Zapping old rootfs chroots (keeping package caches)...\"
+  set +o pipefail
   yes | \$PMB zap 2>&1 | tail -3
+  set -o pipefail
 
   echo \"[3/5] Running pmbootstrap install...\"
   echo -e \"pmos1234\npmos1234\" | \$PMB install 2>&1
