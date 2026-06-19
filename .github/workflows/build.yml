@@ -219,13 +219,13 @@ jobs:
       - name: Clone pmaports
         run: |
           CHANNEL="${{ steps.params.outputs.channel }}"
-          BRANCH="master"
-          if [[ "$CHANNEL" != "edge" ]]; then
-            BRANCH="$CHANNEL"
-          fi
-          sudo -u pmos git clone --depth 1 -b "$BRANCH" \
+          sudo -u pmos git clone --depth 1 -b main \
             https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
             /home/pmos/pmaports
+          if [[ "$CHANNEL" != "edge" ]]; then
+            sudo -u pmos git -C /home/pmos/pmaports fetch --depth 1 origin "$CHANNEL":"$CHANNEL"
+            sudo -u pmos git -C /home/pmos/pmaports checkout "$CHANNEL"
+          fi
 
       # ────────────────────────────────────────────────────────────────────────
       # 6. Write pmbootstrap config (non-interactive init)

@@ -132,21 +132,23 @@ docker exec "$CONTAINER" bash -l -c "
 
   echo \"[1.5/5] Checking and cloning/updating pmaports...\"
   if [ ! -d /home/pmos/pmaports ]; then
-    echo \"Cloning pmaports channel $CHANNEL...\"
-    BRANCH=\"master\"
+    echo \"Cloning pmaports main branch...\"
+    git clone --depth 1 -b main https://gitlab.postmarketos.org/postmarketOS/pmaports.git /home/pmos/pmaports
     if [[ \"$CHANNEL\" != \"edge\" ]]; then
-      BRANCH=\"$CHANNEL\"
+      echo \"Fetching and checking out stable channel $CHANNEL...\"
+      git -C /home/pmos/pmaports fetch --depth 1 origin \"$CHANNEL\":\"$CHANNEL\"
+      git -C /home/pmos/pmaports checkout \"$CHANNEL\"
     fi
-    git clone --depth 1 -b \"\$BRANCH\" https://gitlab.postmarketos.org/postmarketOS/pmaports.git /home/pmos/pmaports
   else
     echo \"Updating pmaports...\"
-    BRANCH=\"master\"
+    git -C /home/pmos/pmaports checkout -f main
+    git -C /home/pmos/pmaports reset --hard origin/main
+    git -C /home/pmos/pmaports pull --depth 1 origin main
     if [[ \"$CHANNEL\" != \"edge\" ]]; then
-      BRANCH=\"$CHANNEL\"
+      echo \"Fetching and checking out stable channel $CHANNEL...\"
+      git -C /home/pmos/pmaports fetch --depth 1 origin \"$CHANNEL\":\"$CHANNEL\"
+      git -C /home/pmos/pmaports checkout \"$CHANNEL\"
     fi
-    git -C /home/pmos/pmaports fetch --depth 1 origin \"\$BRANCH\"
-    git -C /home/pmos/pmaports checkout -f \"\$BRANCH\"
-    git -C /home/pmos/pmaports reset --hard origin/\"\$BRANCH\"
   fi
 
   echo \"[1/5] Setting UI to $UI...\"
