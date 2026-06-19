@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IMAGE_DIR="${SCRIPT_DIR}/../images"
 
 VARIANTS=(
-  "phosh           → pmos_sparse.img            (Phosh, standard)"
+  "phosh           → phosh_sparse.img           (Phosh, standard)"
   "phosh_light     → phosh_light_sparse.img     (Phosh minimal, ~1.2 GB)"
   "phosh_balanced  → phosh_balanced_sparse.img  (Phosh + extras, ~2.0 GB)"
   "sxmo            → sxmo_sparse.img            (Sxmo/Sway, ultralight)"
@@ -26,7 +26,7 @@ VARIANTS=(
 )
 
 declare -A IMG_MAP
-IMG_MAP[phosh]="pmos_sparse.img"
+IMG_MAP[phosh]="phosh_sparse.img"
 IMG_MAP[phosh_light]="phosh_light_sparse.img"
 IMG_MAP[phosh_balanced]="phosh_balanced_sparse.img"
 IMG_MAP[sxmo]="sxmo_sparse.img"

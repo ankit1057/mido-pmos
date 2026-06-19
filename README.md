@@ -47,15 +47,35 @@ This repository contains everything needed to **build, flash, and use postmarket
 - **macOS or Linux** host
 - [`fastboot`](https://developer.android.com/studio/releases/platform-tools) in PATH
 - [`docker`](https://docs.docker.com/get-docker/) (for building)
-- [`git-lfs`](https://git-lfs.com/) (for downloading pre-built images)
+- [`gh` CLI](https://cli.github.com/) (optional, for downloading releases)
 - **Unlocked bootloader** on the device (standard Xiaomi method)
 
+---
+
+## 📦 Downloading Pre-built Images from Releases
+
+Since postmarketOS images are large binary files (1.2 GB to 4.7 GB), they are **not** stored in this Git repository. Instead, they are published directly to [GitHub Releases](https://github.com/ankit1057/mido-pmos/releases).
+
+1. Go to the [Releases page](https://github.com/ankit1057/mido-pmos/releases) and download `lk2nd.img` along with the `.img` (or split parts) for your chosen variant.
+2. Save these files to the `images/` directory in the repository.
+
+### Reassembling Split Images (> 2GB)
+GitHub Releases limits individual asset uploads to 2 GB. Image variants larger than 1.9 GB (e.g. `lomiri_balanced`, `super`, `dev`) are automatically split into ~1.9 GB chunks during the build (e.g., `super_sparse.img.partaa`, `super_sparse.img.partab`).
+
+Before flashing, you must reassemble these parts into a single sparse image file:
+
 ```bash
-# Install git-lfs and pull images
-brew install git-lfs      # macOS
-git lfs install
-git lfs pull              # downloads all .img files
+# Go to the directory where you saved the downloaded parts
+cd images/
+
+# Reassemble the split parts (for example, for the 'super' variant)
+cat super_sparse.img.part* > super_sparse.img
+
+# Clean up the parts if desired
+rm super_sparse.img.part*
 ```
+
+Once reassembled, you can proceed with standard flashing instructions.
 
 ---
 
@@ -85,18 +105,9 @@ mido-pmos/
 │   ├── flash_lomiri_balanced.sh
 │   ├── flash_tuned.sh
 │   └── flash_dev.sh        ← dev image (VSCodium, Flutter, Frappe deps)
-└── images/                 ← tracked by Git LFS
+└── images/                 ← Local build output / download target (Git ignored)
     ├── lk2nd.img           ← secondary bootloader (flash to boot partition)
-    ├── pmos_sparse.img     ← Phosh (original)
-    ├── phosh_light_sparse.img
-    ├── phosh_balanced_sparse.img
-    ├── phosh_dev_sparse.img    ← Developer image (~4.7 GB)
-    ├── sxmo_sparse.img
-    ├── xfce_sparse.img
-    ├── super_sparse.img        ← all-in-one (~3.8 GB)
-    ├── lomiri_light_sparse.img
-    ├── lomiri_balanced_sparse.img
-    └── tuned_sparse.img
+    └── (image files here)  ← put built or downloaded sparse images here
 ```
 
 ---
@@ -121,6 +132,27 @@ The build script will:
 1. Run `pmbootstrap install` inside the container
 2. Convert the raw image to sparse format via `img2simg`
 3. Copy the `.img` file to `images/`
+
+---
+
+## 🛠️ Automated Build with GitHub Actions
+
+The repository includes a fully-automated GitHub Actions pipeline in `.github/workflows/build.yml` which handles builds and releases.
+
+### Triggering a Custom Build:
+1. Go to the **Actions** tab of your repository on GitHub.
+2. Select the **Build & Release postmarketOS Image** workflow in the left sidebar.
+3. Click the **Run workflow** dropdown on the right.
+4. Select the **Image variant** flavor you want to build (e.g. `phosh_light`, `super`, `dev`, etc.).
+5. Select the **postmarketOS release channel** (`edge`, `v25.12`, or `v24.12`).
+6. Click **Run workflow**.
+
+The workflow will:
+- Spin up a clean runner environment and install all dependencies.
+- Compile the selected postmarketOS image variant.
+- Automatically convert the output to a sparse image (`img2simg`).
+- Split the sparse image into ~1.9 GB parts if the total size exceeds the 2 GB GitHub upload limit.
+- Create a release tag and upload the sparse image parts and `lk2nd.img` directly to the repository's **Releases** page.
 
 ---
 
@@ -161,7 +193,7 @@ Each script performs:
 |---|---|---|---|---|
 | `flash_sxmo.sh` | `sxmo_sparse.img` | ~1.1 GB | Sxmo (Sway) | Max RAM for containers |
 | `flash_phosh_light.sh` | `phosh_light_sparse.img` | ~1.2 GB | Phosh (minimal) | Daily driver, light |
-| `flash_phosh.sh` | `pmos_sparse.img` | ~1.9 GB | Phosh | Daily driver |
+| `flash_phosh.sh` | `phosh_sparse.img` | ~1.9 GB | Phosh | Daily driver |
 | `flash_phosh_balanced.sh` | `phosh_balanced_sparse.img` | ~2.0 GB | Phosh | Balanced |
 | `flash_lomiri_light.sh` | `lomiri_light_sparse.img` | ~1.6 GB | Lomiri (light) | Ubuntu Touch feel |
 | `flash_lomiri_balanced.sh` | `lomiri_balanced_sparse.img` | ~2.7 GB | Lomiri | Ubuntu Touch feel |

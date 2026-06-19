@@ -10,6 +10,6 @@ fastboot flash boot ../images/lk2nd.img
 echo "Erasing userdata..."
 fastboot erase userdata
 echo "Flashing Phosh rootfs (sparse)..."
-fastboot -S 128M flash userdata ../images/pmos_sparse.img
+fastboot -S 128M flash userdata ../images/phosh_sparse.img
 echo "Rebooting..."
 fastboot reboot

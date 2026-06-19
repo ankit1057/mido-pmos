@@ -21,3 +21,7 @@ docker/output/
 *.swp
 *.swo
 *~
+
+# ── Ignore built images ───────────────────────────────────────────────────────
+images/*.img
+images/*.img.part*

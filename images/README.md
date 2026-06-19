@@ -1,37 +1,36 @@
 # images/
 
-This directory is tracked by **Git LFS** and holds the pre-built sparse images for flashing.
+This directory holds the built or downloaded sparse images for flashing. **These binary files are ignored by Git.**
 
-## Available Images
+## How to Get the Images
 
-| File | Size | Variant |
-|---|---|---|
-| `lk2nd.img` | ~344 KB | Secondary bootloader (required) |
-| `pmos_sparse.img` | ~1.9 GB | Phosh (standard) |
-| `phosh_light_sparse.img` | ~1.1 GB | Phosh minimal |
-| `phosh_balanced_sparse.img` | ~1.9 GB | Phosh + extras |
-| `phosh_dev_sparse.img` | ~4.7 GB | Developer (VSCodium, Flutter, Frappe) |
-| `sxmo_sparse.img` | ~1.1 GB | Sxmo / Sway |
-| `xfce_sparse.img` | ~2.2 GB | XFCE4 |
-| `lomiri_light_sparse.img` | ~1.5 GB | Lomiri minimal |
-| `lomiri_balanced_sparse.img` | ~2.5 GB | Lomiri + extras |
-| `super_sparse.img` | ~3.6 GB | All-in-one |
-| `tuned_sparse.img` | ~3.2 GB | Tuned dual-UI |
+You can either:
+1. **Download them:** Get pre-built images from [GitHub Releases](https://github.com/ankit1057/mido-pmos/releases) and place them in this folder.
+2. **Build them locally:** Use the Docker environment in `../docker/`.
 
-## How to Download
+## Available Image Mappings
 
-```bash
-# After cloning, pull LFS objects:
-git lfs pull
-```
+| Variant | Image Name | Size | Description |
+|---|---|---|---|
+| `lk2nd` | `lk2nd.img` | ~352 KB | Secondary Android bootloader (required for boot) |
+| `phosh` | `phosh_sparse.img` | ~1.9 GB | Phosh (standard) |
+| `phosh_light` | `phosh_light_sparse.img` | ~1.2 GB | Phosh minimal (light daily driver) |
+| `phosh_balanced` | `phosh_balanced_sparse.img` | ~2.0 GB | Phosh with common extras |
+| `sxmo` | `sxmo_sparse.img` | ~1.1 GB | Sxmo / Sway (ultralight, minimal RAM usage) |
+| `xfce4` | `xfce_sparse.img` | ~2.4 GB | XFCE4 desktop UI |
+| `lomiri_light` | `lomiri_light_sparse.img` | ~1.6 GB | Lomiri UI minimal |
+| `lomiri_balanced` | `lomiri_balanced_sparse.img` | ~2.7 GB | Lomiri UI with common extras |
+| `tuned` | `tuned_sparse.img` | ~3.5 GB | Tuned dual-UI |
+| `super` | `super_sparse.img` | ~3.8 GB | All-in-one Phosh + XFCE4 + Sxmo + Lomiri switcher |
+| `dev` | `phosh_dev_sparse.img` | ~4.7 GB | Developer image (VSCodium, openjdk, podman, etc.) |
 
-> **Note:** Images will be added progressively as GitHub LFS quota allows.  
-> Alternatively, build your own image using the Docker environment in `../docker/`.
+## Build Locally
 
-## Build Your Own
-
+To build any flavor locally:
 ```bash
 cd ../docker
-docker compose up -d
-./build.sh phosh        # or: sxmo | xfce4 | super | dev | ...
+./build.sh <variant> <channel>
+# Example: Build phosh_light on edge channel
+./build.sh phosh_light edge
 ```
+The build script will compile the image inside Docker, convert it to sparse format, and copy it directly to this `images/` directory.
