@@ -142,8 +142,8 @@ docker exec "$CONTAINER" bash -l -c "
   else
     echo \"Updating pmaports...\"
     git -C /home/pmos/pmaports checkout -f main
+    git -C /home/pmos/pmaports fetch --depth 1 origin main
     git -C /home/pmos/pmaports reset --hard origin/main
-    git -C /home/pmos/pmaports pull --depth 1 origin main
     if [[ \"$CHANNEL\" != \"edge\" ]]; then
       echo \"Fetching and checking out stable channel $CHANNEL...\"
       git -C /home/pmos/pmaports fetch --depth 1 origin \"$CHANNEL\":\"$CHANNEL\"
