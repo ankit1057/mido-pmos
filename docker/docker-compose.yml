@@ -1,0 +1,18 @@
+services:
+  pmbootstrap:
+    build: .
+    image: mido-pmos-builder:latest
+    container_name: pmos
+    privileged: true          # needed for loop devices + chroot inside pmbootstrap
+    tty: true
+    stdin_open: true
+    command: sleep infinity   # keep container alive; exec in manually
+    volumes:
+      - pmbootstrap-work:/home/pmos/.local/var/pmbootstrap
+      - ./output:/home/pmos/output  # built images land here
+    environment:
+      - TERM=xterm-256color
+
+volumes:
+  pmbootstrap-work:
+    name: pmos-pmbootstrap-work

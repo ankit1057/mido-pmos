@@ -1,0 +1,17 @@
+# ── Git LFS tracking rules ────────────────────────────────────────────────────
+# All disk images and binary firmware in images/ are tracked by Git LFS.
+# This keeps the git history lightweight while still allowing large files
+# to be versioned and distributed.
+*.img filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+*.sparse filter=lfs diff=lfs merge=lfs -text
+images/*.img filter=lfs diff=lfs merge=lfs -text
+images/*.bin filter=lfs diff=lfs merge=lfs -text
+# Ensure shell scripts stay with LF line endings
+*.sh text eol=lf
+# Markdown / YAML / config — text
+*.md text
+*.yml text
+*.yaml text
+*.cfg text
+Dockerfile text

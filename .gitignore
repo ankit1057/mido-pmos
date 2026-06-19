@@ -1,0 +1,23 @@
+# ── Ignore macOS junk ─────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── pmbootstrap work directory ────────────────────────────────────────────────
+# Don't commit local pmbootstrap state
+docker/work/
+docker/output/
+.local/
+
+# ── Secrets / keys ───────────────────────────────────────────────────────────
+*.key
+*.pem
+*.env
+.env*
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/
+*.swp
+*.swo
+*~
