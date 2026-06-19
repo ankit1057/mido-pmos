@@ -16,58 +16,102 @@
 #   super            — All-in-one (Phosh + XFCE4 + Sxmo + Lomiri)
 #   dev              — Developer image (VSCodium, Flutter, Frappe deps, Podman)
 #
-# The script runs inside the 'pmos' Docker container. Start it first:
+# The script runs against the 'pmos' Docker container. Start it first:
 #   docker compose up -d
+#
+# Validated against pmbootstrap 3.10.1 on 2025-06-19.
+# Key lessons learned:
+#   - Must run as 'pmos' user (not root) inside the container
+#   - Password must be piped via echo (no TTY in non-interactive exec)
+#   - Use `pmbootstrap export` (NOT --odin, which is Heimdall/Samsung only)
+#   - `zap` has no -y flag; pipe `yes` to confirm
+#   - Set UI via `pmbootstrap config ui <name>` before install
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -euo pipefail
 VARIANT="${1:-phosh}"
 CONTAINER="pmos"
+PMB_USER="pmos"
+PMB="python3 /home/pmos/pmbootstrap/pmbootstrap.py"
 OUTPUT_DIR="$(cd "$(dirname "$0")" && pwd)/../images"
 mkdir -p "$OUTPUT_DIR"
 
-# ── Package sets per variant ─────────────────────────────────────────────────
+# ── UI name for pmbootstrap config ───────────────────────────────────────────
+declare -A UI_NAME
+UI_NAME[phosh]="phosh"
+UI_NAME[phosh_light]="phosh"
+UI_NAME[phosh_balanced]="phosh"
+UI_NAME[sxmo]="sxmo-de-sway"
+UI_NAME[xfce4]="xfce4"
+UI_NAME[lomiri_light]="lomiri"
+UI_NAME[lomiri_balanced]="lomiri"
+UI_NAME[super]="phosh"
+UI_NAME[dev]="phosh"
+
+# ── Extra packages ON TOP of the base UI ─────────────────────────────────────
 declare -A PKGS
-PKGS[phosh]="postmarketos-ui-phosh"
-PKGS[phosh_light]="postmarketos-ui-phosh"
-PKGS[phosh_balanced]="postmarketos-ui-phosh,foot,nautilus,evince,mpv"
-PKGS[sxmo]="postmarketos-ui-sxmo-de-sway"
-PKGS[xfce4]="postmarketos-ui-xfce4"
-PKGS[lomiri_light]="postmarketos-ui-lomiri"
-PKGS[lomiri_balanced]="postmarketos-ui-lomiri,morph-browser,messaging-app"
-PKGS[super]="postmarketos-ui-phosh,postmarketos-ui-sxmo-de-sway,postmarketos-ui-xfce4,postmarketos-ui-lomiri"
-PKGS[dev]="postmarketos-ui-phosh,vscodium,flutter,openjdk17,python3,py3-pip,nodejs,npm,yarn,mariadb,redis,podman"
+PKGS[phosh]="none"
+PKGS[phosh_light]="none"
+PKGS[phosh_balanced]="foot,nautilus,evince,mpv"
+PKGS[sxmo]="none"
+PKGS[xfce4]="none"
+PKGS[lomiri_light]="none"
+PKGS[lomiri_balanced]="morph-browser,messaging-app"
+PKGS[super]="postmarketos-ui-sxmo-de-sway,postmarketos-ui-xfce4,postmarketos-ui-lomiri"
+PKGS[dev]="vscodium,openjdk17,python3,py3-pip,nodejs,npm,yarn,mariadb,redis,podman"
 
 if [[ -z "${PKGS[$VARIANT]+_}" ]]; then
   echo "ERROR: Unknown variant '$VARIANT'. Valid: ${!PKGS[*]}"
   exit 1
 fi
 
+UI="${UI_NAME[$VARIANT]}"
+EXTRA="${PKGS[$VARIANT]}"
 IMG_NAME="${VARIANT}_sparse.img"
 
 echo "═══════════════════════════════════════════════"
 echo "  Building variant : $VARIANT"
-echo "  Packages         : ${PKGS[$VARIANT]}"
+echo "  UI               : $UI"
+echo "  Extra packages   : $EXTRA"
 echo "  Output           : $OUTPUT_DIR/$IMG_NAME"
 echo "═══════════════════════════════════════════════"
 
-docker exec -it "$CONTAINER" bash -lc "
-  set -euo pipefail
-  pmbootstrap zap -y 2>/dev/null || true
-  pmbootstrap install \
-    --extra-packages '${PKGS[$VARIANT]}' \
-    --no-fde \
-    -- \
-    qcom-msm8953 \
-    linux-postmarketos-qcom-msm8953
+# ── Run build steps inside container as pmos user ────────────────────────────
+docker exec "$CONTAINER" bash -c "
+  su - $PMB_USER -c '
+    set -euo pipefail
+    PMB=\"$PMB\"
 
-  # Export images
-  pmbootstrap export --odin /tmp/pmos-export
-  RAW=\$(ls /tmp/pmos-export/*.img 2>/dev/null | head -n1)
-  echo \"Exporting \$RAW → /home/pmos/output/${IMG_NAME}\"
-  img2simg \"\$RAW\" /home/pmos/output/${IMG_NAME}
+    echo \"[1/5] Setting UI to $UI...\"
+    \$PMB config ui \"$UI\"
+
+    if [[ \"$EXTRA\" != \"none\" ]]; then
+      echo \"[1/5] Setting extra_packages to $EXTRA...\"
+      \$PMB config extra_packages \"$EXTRA\"
+    else
+      \$PMB config extra_packages \"none\"
+    fi
+
+    echo \"[2/5] Zapping old rootfs chroots (keeping package caches)...\"
+    yes | \$PMB zap 2>&1 | tail -3
+
+    echo \"[3/5] Running pmbootstrap install...\"
+    echo -e \"pmos1234\npmos1234\" | \$PMB install 2>&1
+
+    echo \"[4/5] Exporting image symlinks...\"
+    mkdir -p /home/pmos/output
+    \$PMB export /home/pmos/output 2>&1 | grep -E \"Export|DONE|ERROR\"
+
+    echo \"[5/5] Converting to sparse image...\"
+    RAW=\$(readlink -f /home/pmos/output/qcom-msm8953.img)
+    img2simg \"\$RAW\" \"/home/pmos/output/$IMG_NAME\"
+    ls -lh \"/home/pmos/output/$IMG_NAME\"
+    echo \"Sparse image ready.\"
+  '
 "
 
-# Copy from container output volume mount
+# ── Copy out of container to host images/ ────────────────────────────────────
 docker cp "${CONTAINER}:/home/pmos/output/${IMG_NAME}" "${OUTPUT_DIR}/${IMG_NAME}"
+echo ""
 echo "✅  Built: ${OUTPUT_DIR}/${IMG_NAME}"
+echo "    Size : $(du -sh "${OUTPUT_DIR}/${IMG_NAME}" | cut -f1)"
