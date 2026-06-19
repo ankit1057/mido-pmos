@@ -281,8 +281,17 @@ jobs:
       - name: Build image (pmbootstrap install)
         run: |
           sudo sysctl -w fs.protected_regular=0 || true
-          echo -e "${{ env.PMOS_PASSWORD }}\n${{ env.PMOS_PASSWORD }}" | \
-            sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1
+          if ! (echo -e "${{ env.PMOS_PASSWORD }}\n${{ env.PMOS_PASSWORD }}" | \
+            sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config bash -c "umask 0022 && python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1"); then
+              echo "=== ERROR: pmbootstrap install failed ==="
+              echo "=== Host sysctl protected_regular ==="
+              sysctl fs.protected_regular || true
+              echo "=== Chroot folder permissions ==="
+              sudo ls -la /home/pmos/.local/var/pmbootstrap/ || true
+              sudo ls -la /home/pmos/.local/var/pmbootstrap/chroot_rootfs_qcom-msm8953/ || true
+              sudo ls -la /home/pmos/.local/var/pmbootstrap/chroot_rootfs_qcom-msm8953/tmp/ || true
+              exit 1
+          fi
         timeout-minutes: 90
 
       # ────────────────────────────────────────────────────────────────────────
