@@ -117,40 +117,38 @@ echo "  Output           : $OUTPUT_DIR/$IMG_NAME"
 echo "═══════════════════════════════════════════════"
 
 # ── Run build steps inside container as pmos user ────────────────────────────
-docker exec "$CONTAINER" bash -c "
-  su - $PMB_USER -c '
-    set -euo pipefail
-    PMB=\"$PMB\"
+docker exec "$CONTAINER" bash -l -c "
+  set -euo pipefail
+  PMB=\"$PMB\"
 
-    echo \"[1/5] Setting channel to $CHANNEL...\"
-    \$PMB config channel \"$CHANNEL\"
+  echo \"[1/5] Setting channel to $CHANNEL...\"
+  \$PMB config channel \"$CHANNEL\"
 
-    echo \"[1/5] Setting UI to $UI...\"
-    \$PMB config ui \"$UI\"
+  echo \"[1/5] Setting UI to $UI...\"
+  \$PMB config ui \"$UI\"
 
-    if [[ \"$EXTRA\" != \"none\" ]]; then
-      echo \"[1/5] Setting extra_packages to $EXTRA...\"
-      \$PMB config extra_packages \"$EXTRA\"
-    else
-      \$PMB config extra_packages \"none\"
-    fi
+  if [[ \"$EXTRA\" != \"none\" ]]; then
+    echo \"[1/5] Setting extra_packages to $EXTRA...\"
+    \$PMB config extra_packages \"$EXTRA\"
+  else
+    \$PMB config extra_packages \"none\"
+  fi
 
-    echo \"[2/5] Zapping old rootfs chroots (keeping package caches)...\"
-    yes | \$PMB zap 2>&1 | tail -3
+  echo \"[2/5] Zapping old rootfs chroots (keeping package caches)...\"
+  yes | \$PMB zap 2>&1 | tail -3
 
-    echo \"[3/5] Running pmbootstrap install...\"
-    echo -e \"pmos1234\npmos1234\" | \$PMB install 2>&1
+  echo \"[3/5] Running pmbootstrap install...\"
+  echo -e \"pmos1234\npmos1234\" | \$PMB install 2>&1
 
-    echo \"[4/5] Exporting image symlinks...\"
-    mkdir -p /home/pmos/output
-    \$PMB export /home/pmos/output 2>&1 | grep -E \"Export|DONE|ERROR\"
+  echo \"[4/5] Exporting image symlinks...\"
+  mkdir -p /home/pmos/output
+  \$PMB export /home/pmos/output 2>&1 | grep -E \"Export|DONE|ERROR\"
 
-    echo \"[5/5] Converting to sparse image...\"
-    RAW=\$(readlink -f /home/pmos/output/qcom-msm8953.img)
-    img2simg \"\$RAW\" \"/home/pmos/output/$IMG_NAME\"
-    ls -lh \"/home/pmos/output/$IMG_NAME\"
-    echo \"Sparse image ready.\"
-  '
+  echo \"[5/5] Converting to sparse image...\"
+  RAW=\$(readlink -f /home/pmos/output/qcom-msm8953.img)
+  img2simg \"\$RAW\" \"/home/pmos/output/$IMG_NAME\"
+  ls -lh \"/home/pmos/output/$IMG_NAME\"
+  echo \"Sparse image ready.\"
 "
 
 # ── Copy out of container to host images/ ────────────────────────────────────
