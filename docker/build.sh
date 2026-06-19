@@ -64,8 +64,8 @@ if ! docker ps --filter "name=^${CONTAINER}$" --filter "status=running" --format
   echo "Building builder image..."
   docker build -t mido-pmos-builder:latest "$SCRIPT_DIR"
   docker volume create pmos-pmbootstrap-work >/dev/null 2>&1 || true
-  echo "Starting container..."
   docker run -d --privileged --name "$CONTAINER" -it \
+    --entrypoint "" \
     -v pmos-pmbootstrap-work:/home/pmos/.local/var/pmbootstrap \
     -v "$SCRIPT_DIR/output:/home/pmos/output" \
     -e TERM=xterm-256color \
