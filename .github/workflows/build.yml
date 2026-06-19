@@ -214,6 +214,20 @@ jobs:
           echo "pmbootstrap version: $(sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py --version)"
 
       # ────────────────────────────────────────────────────────────────────────
+      # 5.5. Clone pmaports (required for pmbootstrap config validation)
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Clone pmaports
+        run: |
+          CHANNEL="${{ steps.params.outputs.channel }}"
+          BRANCH="master"
+          if [[ "$CHANNEL" != "edge" ]]; then
+            BRANCH="$CHANNEL"
+          fi
+          sudo -u pmos git clone --depth 1 -b "$BRANCH" \
+            https://gitlab.postmarketos.org/postmarketOS/pmaports.git \
+            /home/pmos/pmaports
+
+      # ────────────────────────────────────────────────────────────────────────
       # 6. Write pmbootstrap config (non-interactive init)
       # ────────────────────────────────────────────────────────────────────────
       - name: Configure pmbootstrap

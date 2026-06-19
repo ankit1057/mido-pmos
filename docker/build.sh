@@ -130,6 +130,25 @@ docker exec "$CONTAINER" bash -l -c "
   echo \"[1/5] Setting channel to $CHANNEL...\"
   sed -i \"s/^channel =.*/channel = $CHANNEL/\" /home/pmos/.config/pmbootstrap_v3.cfg
 
+  echo \"[1.5/5] Checking and cloning/updating pmaports...\"
+  if [ ! -d /home/pmos/pmaports ]; then
+    echo \"Cloning pmaports channel $CHANNEL...\"
+    BRANCH=\"master\"
+    if [[ \"$CHANNEL\" != \"edge\" ]]; then
+      BRANCH=\"$CHANNEL\"
+    fi
+    git clone --depth 1 -b \"\$BRANCH\" https://gitlab.postmarketos.org/postmarketOS/pmaports.git /home/pmos/pmaports
+  else
+    echo \"Updating pmaports...\"
+    BRANCH=\"master\"
+    if [[ \"$CHANNEL\" != \"edge\" ]]; then
+      BRANCH=\"$CHANNEL\"
+    fi
+    git -C /home/pmos/pmaports fetch --depth 1 origin \"\$BRANCH\"
+    git -C /home/pmos/pmaports checkout -f \"\$BRANCH\"
+    git -C /home/pmos/pmaports reset --hard origin/\"\$BRANCH\"
+  fi
+
   echo \"[1/5] Setting UI to $UI...\"
   \$PMB config ui \"$UI\"
 
