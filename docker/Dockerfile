@@ -39,10 +39,10 @@ RUN git clone --depth 1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap
 ENV PATH="/home/pmos/.local/bin:${PATH}"
 
 # ── Pre-configure pmbootstrap for mido ─────────────────────────────────────
-# The config below pre-seeds ~/.config/pmbootstrap.cfg so the container is
+# The config below pre-seeds ~/.config/pmbootstrap_v3.cfg so the container is
 # ready to build without interactive `pmbootstrap init`.
 RUN mkdir -p /home/pmos/.config
-COPY --chown=pmos:pmos pmbootstrap.cfg /home/pmos/.config/pmbootstrap.cfg
+COPY --chown=pmos:pmos pmbootstrap_v3.cfg /home/pmos/.config/pmbootstrap_v3.cfg
 
 VOLUME ["/home/pmos/.local/var/pmbootstrap"]
 

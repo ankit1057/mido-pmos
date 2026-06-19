@@ -125,7 +125,7 @@ docker exec "$CONTAINER" bash -l -c "
   sudo chown -R pmos:pmos /home/pmos/.local/var/pmbootstrap
 
   echo \"[1/5] Setting channel to $CHANNEL...\"
-  sed -i \"s/^channel =.*/channel = $CHANNEL/\" /home/pmos/.config/pmbootstrap.cfg
+  sed -i \"s/^channel =.*/channel = $CHANNEL/\" /home/pmos/.config/pmbootstrap_v3.cfg
 
   echo \"[1/5] Setting UI to $UI...\"
   \$PMB config ui \"$UI\"
