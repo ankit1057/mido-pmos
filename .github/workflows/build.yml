@@ -187,7 +187,7 @@ jobs:
             android-sdk-libsparse-utils \
             cryptsetup-bin util-linux \
             wget curl ca-certificates \
-            sudo pigz
+            sudo pigz acl
 
           # Verify img2simg is available
           which img2simg || { echo "ERROR: img2simg not found"; exit 1; }
@@ -202,6 +202,8 @@ jobs:
           echo "pmos ALL=(ALL) NOPASSWD: ALL" | sudo tee -a /etc/sudoers
           # Give pmos access to loop devices (needed by pmbootstrap chroot)
           sudo usermod -aG disk pmos 2>/dev/null || true
+          # Strip default ACLs from /home/pmos to prevent permission inheritance bugs
+          sudo setfacl -bnR /home/pmos || true
 
       # ────────────────────────────────────────────────────────────────────────
       # 5. Clone pmbootstrap
@@ -235,6 +237,8 @@ jobs:
           sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config mkdir -p /home/pmos/.config
           sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config mkdir -p /home/pmos/.local/var/pmbootstrap
           sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config sh -c "echo 8 > /home/pmos/.local/var/pmbootstrap/version"
+          # Strip default ACLs from work directory
+          sudo setfacl -bnR /home/pmos/.local/var/pmbootstrap || true
           sudo tee /home/pmos/.config/pmbootstrap_v3.cfg > /dev/null << 'EOF'
           [pmbootstrap]
           aports = /home/pmos/pmaports
