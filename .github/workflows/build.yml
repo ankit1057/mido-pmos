@@ -7,6 +7,10 @@ on:
       variant:
         required: true
         type: string
+      channel:
+        required: false
+        type: string
+        default: 'edge'
       release_tag:
         required: false
         type: string
@@ -35,6 +39,16 @@ on:
           - tuned             # ~3.2 GB  — Tuned dual-UI   ⚠️ will split
           - super             # ~3.6 GB  — All-in-one      ⚠️ will split
           - dev               # ~4.7 GB  — Full dev image  ⚠️ will split
+
+      channel:
+        description: 'postmarketOS release channel/version'
+        required: true
+        type: choice
+        default: 'edge'
+        options:
+          - edge
+          - v25.12
+          - v24.12
 
       release_tag:
         description: 'Release tag (e.g. v1.0, nightly). Leave blank to auto-generate.'
@@ -80,8 +94,11 @@ jobs:
       - name: Resolve build parameters
         id: params
         run: |
-          VARIANT="${{ github.event.inputs.variant || 'phosh_light' }}"
+          VARIANT="${{ github.event.inputs.variant || inputs.variant || 'phosh_light' }}"
           echo "variant=$VARIANT" >> $GITHUB_OUTPUT
+
+          CHANNEL="${{ github.event.inputs.channel || inputs.channel || 'edge' }}"
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
 
           # UI name map
           case "$VARIANT" in
@@ -112,7 +129,7 @@ jobs:
           echo "extra=$EXTRA" >> $GITHUB_OUTPUT
 
           # Release tag
-          TAG="${{ github.event.inputs.release_tag }}"
+          TAG="${{ github.event.inputs.release_tag || inputs.release_tag }}"
           if [[ -z "$TAG" ]]; then
             TAG="build-$(date -u +%Y%m%d-%H%M)-${VARIANT}"
           fi
@@ -122,6 +139,7 @@ jobs:
           echo ""
           echo "=== Build parameters ==="
           echo "  Variant : $VARIANT"
+          echo "  Channel : $CHANNEL"
           echo "  UI      : $UI"
           echo "  Extra   : $EXTRA"
           echo "  Tag     : $TAG"
@@ -191,7 +209,7 @@ jobs:
       - name: Clone pmbootstrap
         run: |
           sudo -u pmos git clone --depth 1 \
-            https://gitlab.com/postmarketOS/pmbootstrap.git \
+            https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git \
             /home/pmos/pmbootstrap
           echo "pmbootstrap version: $(sudo -u pmos python3 /home/pmos/pmbootstrap/pmbootstrap.py --version)"
 
@@ -203,7 +221,9 @@ jobs:
           sudo -u pmos mkdir -p /home/pmos/.config
           sudo tee /home/pmos/.config/pmbootstrap_v3.cfg > /dev/null << 'EOF'
           [pmbootstrap]
+          aports = /home/pmos/pmaports
           auto_zap_misconfigured_chroots = yes
+          channel = ${{ steps.params.outputs.channel }}
           device = qcom-msm8953
           is_default_channel = False
           sudo_timer = True

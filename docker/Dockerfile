@@ -29,7 +29,7 @@ USER pmos
 WORKDIR /home/pmos
 
 # ── Install pmbootstrap ─────────────────────────────────────────────────────
-RUN git clone --depth 1 https://gitlab.com/postmarketOS/pmbootstrap.git && \
+RUN git clone --depth 1 https://gitlab.postmarketos.org/postmarketOS/pmbootstrap.git && \
     pip3 install --user --break-system-packages ./pmbootstrap
 
 ENV PATH="/home/pmos/.local/bin:${PATH}"

@@ -30,10 +30,49 @@
 
 set -euo pipefail
 VARIANT="${1:-phosh}"
+CHANNEL="${2:-edge}"
 CONTAINER="pmos"
 PMB_USER="pmos"
 PMB="python3 /home/pmos/pmbootstrap/pmbootstrap.py"
-OUTPUT_DIR="$(cd "$(dirname "$0")" && pwd)/../images"
+
+# ── Ensure Docker Daemon is running ──────────────────────────────────────────
+if ! docker info >/dev/null 2>&1; then
+  echo "Docker daemon is not running. Attempting to start Docker Desktop..."
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    open -g -a Docker
+    echo -n "Waiting for Docker daemon to start"
+    until docker info >/dev/null 2>&1; do
+      echo -n "."
+      sleep 2
+    done
+    echo " Started!"
+  else
+    echo "Error: Docker daemon is not running and auto-start is only supported on macOS."
+    echo "Please start Docker and try again."
+    exit 1
+  fi
+fi
+
+# ── Ensure Builder Container is running ──────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if ! docker ps --filter "name=^${CONTAINER}$" --filter "status=running" --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+  echo "Builder container '$CONTAINER' is not running. Starting it..."
+  if docker ps -a --filter "name=^${CONTAINER}$" --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
+    echo "Removing stopped '$CONTAINER' container..."
+    docker rm -f "$CONTAINER" >/dev/null
+  fi
+  echo "Building builder image..."
+  docker build -t mido-pmos-builder:latest "$SCRIPT_DIR"
+  docker volume create pmos-pmbootstrap-work >/dev/null 2>&1 || true
+  echo "Starting container..."
+  docker run -d --privileged --name "$CONTAINER" -it \
+    -v pmos-pmbootstrap-work:/home/pmos/.local/var/pmbootstrap \
+    -v "$SCRIPT_DIR/output:/home/pmos/output" \
+    -e TERM=xterm-256color \
+    mido-pmos-builder:latest sleep infinity
+fi
+
+OUTPUT_DIR="$SCRIPT_DIR/../images"
 mkdir -p "$OUTPUT_DIR"
 
 # ── UI name for pmbootstrap config ───────────────────────────────────────────
@@ -71,6 +110,7 @@ IMG_NAME="${VARIANT}_sparse.img"
 
 echo "═══════════════════════════════════════════════"
 echo "  Building variant : $VARIANT"
+echo "  Channel          : $CHANNEL"
 echo "  UI               : $UI"
 echo "  Extra packages   : $EXTRA"
 echo "  Output           : $OUTPUT_DIR/$IMG_NAME"
@@ -81,6 +121,9 @@ docker exec "$CONTAINER" bash -c "
   su - $PMB_USER -c '
     set -euo pipefail
     PMB=\"$PMB\"
+
+    echo \"[1/5] Setting channel to $CHANNEL...\"
+    \$PMB config channel \"$CHANNEL\"
 
     echo \"[1/5] Setting UI to $UI...\"
     \$PMB config ui \"$UI\"
