@@ -167,6 +167,7 @@ docker exec "$CONTAINER" bash -l -c "
   set -o pipefail
 
   echo \"[3/5] Running pmbootstrap install...\"
+  sudo sysctl -w fs.protected_regular=0 || true
   echo -e \"pmos1234\npmos1234\" | \$PMB install 2>&1
 
   echo \"[4/5] Exporting image symlinks...\"

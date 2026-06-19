@@ -280,6 +280,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Build image (pmbootstrap install)
         run: |
+          sudo sysctl -w fs.protected_regular=0 || true
           echo -e "${{ env.PMOS_PASSWORD }}\n${{ env.PMOS_PASSWORD }}" | \
             sudo -u pmos env HOME=/home/pmos XDG_CONFIG_HOME=/home/pmos/.config python3 /home/pmos/pmbootstrap/pmbootstrap.py install 2>&1
         timeout-minutes: 90
